@@ -1,20 +1,12 @@
-// Copyright 2013 Akeda Bagus <admin@gedex.web.id>. All rights reserved.
+// Package inflector pluralizes and singularizes English nouns. There are only
+// two exported functions: `Pluralize` and `Singularize`.
 //
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-/*
-Package inflector pluralizes and singularizes English nouns.
-
-There are only two exported functions: `Pluralize` and `Singularize`.
-
-	s := "People"
-	fmt.Println(inflector.Singularize(s)) // will print "Person"
-
-	s2 := "octopus"
-	fmt.Println(inflector.Pluralize(s2)) // will print "octopuses"
-
-*/
+// Example:
+//
+// 	inflector.Singularize("People") // returns "Person"
+//
+// 	inflector.Pluralize("octopus) // returns "octopuses"
+//
 package inflector
 
 import (
@@ -25,16 +17,16 @@ import (
 	"sync"
 )
 
-// Rule represents name of the inflector rule, can be
-// Plural or Singular
+// Rule is the inflector rule type (plural or singular).
 type Rule int
 
+// Rule values.
 const (
-	Plural = iota
-	Singular
+	RulePlural = iota
+	RuleSingular
 )
 
-// InflectorRule represents inflector rule
+// InflectorRule represents an inflector rule.
 type InflectorRule struct {
 	Rules               []*ruleItem
 	Irregular           []*irregularItem
@@ -54,17 +46,21 @@ type irregularItem struct {
 	replacement string
 }
 
-// compiledRule represents compiled version of Inflector.Rules.
+// compiledRule holds compiled version of Inflector.Rules.
 type compiledRule struct {
 	replacement string
 	*regexp.Regexp
 }
 
-// threadsafe access to rules and caches
-var mutex sync.Mutex
-var rules = make(map[Rule]*InflectorRule)
+// rules are the inflector rules.
+var rules = struct {
+	rules map[Rule]*InflectorRule
+	sync.Mutex
+}{
+	rules: make(map[Rule]*InflectorRule),
+}
 
-// Words that should not be inflected
+// uninflected are words that should not be inflected.
 var uninflected = []string{
 	`Amoyese`, `bison`, `Borghese`, `bream`, `breeches`, `britches`, `buffalo`,
 	`cantus`, `carp`, `chassis`, `clippers`, `cod`, `coitus`, `Congoese`,
@@ -81,29 +77,26 @@ var uninflected = []string{
 	`wildebeest`, `Yengeese`,
 }
 
-// Plural words that should not be inflected
+// uninflectedPlurals are plural words that should not be inflected.
 var uninflectedPlurals = []string{
 	`.*[nrlm]ese`, `.*deer`, `.*fish`, `.*measles`, `.*ois`, `.*pox`, `.*sheep`,
 	`people`,
 }
 
-// Singular words that should not be inflected
+// uninflectedSingular are singular words that should not be inflected.
 var uninflectedSingulars = []string{
 	`.*[nrlm]ese`, `.*deer`, `.*fish`, `.*measles`, `.*ois`, `.*pox`, `.*sheep`,
 	`.*ss`,
 }
 
-type cache map[string]string
-
 // Inflected words that already cached for immediate retrieval from a given Rule
-var caches = make(map[Rule]cache)
+var caches = make(map[Rule]map[string]string)
 
 // map of irregular words where its key is a word and its value is the replacement
-var irregularMaps = make(map[Rule]cache)
+var irregularMaps = make(map[Rule]map[string]string)
 
 func init() {
-
-	rules[Plural] = &InflectorRule{
+	rules.rules[RulePlural] = &InflectorRule{
 		Rules: []*ruleItem{
 			{`(?i)(s)tatus$`, `${1}${2}tatuses`},
 			{`(?i)(quiz)$`, `${1}zes`},
@@ -168,9 +161,8 @@ func init() {
 			{`foot`, `feet`},
 		},
 	}
-	prepare(Plural)
-
-	rules[Singular] = &InflectorRule{
+	prepare(RulePlural)
+	rules.rules[RuleSingular] = &InflectorRule{
 		Rules: []*ruleItem{
 			{`(?i)(s)tatuses$`, `${1}${2}tatus`},
 			{`(?i)^(.*)(menu)s$`, `${1}${2}`},
@@ -250,49 +242,42 @@ func init() {
 			{`feet`, `foot`},
 		},
 	}
-	prepare(Singular)
+	prepare(RuleSingular)
 }
 
 // prepare rule, e.g., compile the pattern.
 func prepare(r Rule) error {
 	var reString string
-
 	switch r {
-	case Plural:
+	case RulePlural:
 		// Merge global uninflected with singularsUninflected
-		rules[r].Uninflected = merge(uninflected, uninflectedPlurals)
-	case Singular:
+		rules.rules[r].Uninflected = merge(uninflected, uninflectedPlurals)
+	case RuleSingular:
 		// Merge global uninflected with singularsUninflected
-		rules[r].Uninflected = merge(uninflected, uninflectedSingulars)
+		rules.rules[r].Uninflected = merge(uninflected, uninflectedSingulars)
 	}
-
-	// Set InflectorRule.compiledUninflected by joining InflectorRule.Uninflected into
-	// a single string then compile it.
-	reString = fmt.Sprintf(`(?i)(^(?:%s))$`, strings.Join(rules[r].Uninflected, `|`))
-	rules[r].compiledUninflected = regexp.MustCompile(reString)
-
+	// Set InflectorRule.compiledUninflected by joining
+	// InflectorRule.Uninflected into a single string then compile it.
+	reString = fmt.Sprintf(`(?i)(^(?:%s))$`, strings.Join(rules.rules[r].Uninflected, `|`))
+	rules.rules[r].compiledUninflected = regexp.MustCompile(reString)
 	// Prepare irregularMaps
-	irregularMaps[r] = make(cache, len(rules[r].Irregular))
-
-	// Set InflectorRule.compiledIrregular by joining the irregularItem.word of Inflector.Irregular
-	// into a single string then compile it.
-	vIrregulars := make([]string, len(rules[r].Irregular))
-	for i, item := range rules[r].Irregular {
+	irregularMaps[r] = make(map[string]string, len(rules.rules[r].Irregular))
+	// Set InflectorRule.compiledIrregular by joining the irregularItem.word of
+	// Inflector.Irregular into a single string then compile it.
+	vIrregulars := make([]string, len(rules.rules[r].Irregular))
+	for i, item := range rules.rules[r].Irregular {
 		vIrregulars[i] = item.word
 		irregularMaps[r][item.word] = item.replacement
 	}
 	reString = fmt.Sprintf(`(?i)(.*)\b((?:%s))$`, strings.Join(vIrregulars, `|`))
-	rules[r].compiledIrregular = regexp.MustCompile(reString)
-
+	rules.rules[r].compiledIrregular = regexp.MustCompile(reString)
 	// Compile all patterns in InflectorRule.Rules
-	rules[r].compiledRules = make([]*compiledRule, len(rules[r].Rules))
-	for i, item := range rules[r].Rules {
-		rules[r].compiledRules[i] = &compiledRule{item.replacement, regexp.MustCompile(item.pattern)}
+	rules.rules[r].compiledRules = make([]*compiledRule, len(rules.rules[r].Rules))
+	for i, item := range rules.rules[r].Rules {
+		rules.rules[r].compiledRules[i] = &compiledRule{item.replacement, regexp.MustCompile(item.pattern)}
 	}
-
 	// Prepare caches
-	caches[r] = make(cache)
-
+	caches[r] = make(map[string]string)
 	return nil
 }
 
@@ -301,54 +286,47 @@ func merge(a []string, b []string) []string {
 	result := make([]string, len(a)+len(b))
 	copy(result, a)
 	copy(result[len(a):], b)
-
 	return result
 }
 
 // Pluralize returns string s in plural form.
 func Pluralize(s string) string {
-	return getInflected(Plural, s)
+	return getInflected(RulePlural, s)
 }
 
 // Singularize returns string s in singular form.
 func Singularize(s string) string {
-	return getInflected(Singular, s)
+	return getInflected(RuleSingular, s)
 }
 
 func getInflected(r Rule, s string) string {
-	mutex.Lock()
-	defer mutex.Unlock()
+	rules.Lock()
+	defer rules.Unlock()
 	if v, ok := caches[r][s]; ok {
 		return v
 	}
-
 	// Check for irregular words
-	if res := rules[r].compiledIrregular.FindStringSubmatch(s); len(res) >= 3 {
+	if res := rules.rules[r].compiledIrregular.FindStringSubmatch(s); len(res) >= 3 {
 		var buf bytes.Buffer
-
 		buf.WriteString(res[1])
 		buf.WriteString(s[0:1])
 		buf.WriteString(irregularMaps[r][strings.ToLower(res[2])][1:])
-
 		// Cache it then returns
 		caches[r][s] = buf.String()
 		return caches[r][s]
 	}
-
 	// Check for uninflected words
-	if rules[r].compiledUninflected.MatchString(s) {
+	if rules.rules[r].compiledUninflected.MatchString(s) {
 		caches[r][s] = s
 		return caches[r][s]
 	}
-
 	// Check each rule
-	for _, re := range rules[r].compiledRules {
+	for _, re := range rules.rules[r].compiledRules {
 		if re.MatchString(s) {
 			caches[r][s] = re.ReplaceAllString(s, re.replacement)
 			return caches[r][s]
 		}
 	}
-
 	// Returns unaltered
 	caches[r][s] = s
 	return caches[r][s]
