@@ -3,7 +3,7 @@ package inflector_test
 import (
 	"fmt"
 
-	"github.com/gedex/inflector"
+	"github.com/kenshaw/inflector"
 )
 
 func ExampleSingularize() {
