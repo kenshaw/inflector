@@ -1,3 +1,3 @@
 module github.com/kenshaw/inflector
 
-go 1.17
+go 1.22
