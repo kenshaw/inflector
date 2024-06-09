@@ -5,59 +5,70 @@ import (
 )
 
 func TestPluralize(t *testing.T) {
-	for i, test := range pluralTests() {
-		if s := Pluralize(test.s); s != test.exp {
-			t.Errorf("test %d Pluralize(%s) = %s, expected: %s", i, test.s, s, test.exp)
-		}
-		// Second retrieval should returns the same result. This is also tests
-		// the cache
-		if s := Pluralize(test.s); s != test.exp {
-			t.Errorf("test %d (2) Pluralize(%s) = %s, expected: %s", i, test.s, s, test.exp)
-		}
+	for _, test := range pluralTests() {
+		t.Run(test.s, func(t *testing.T) {
+			if s := Pluralize(test.s); s != test.exp {
+				t.Errorf("Pluralize(%s) = %s, expected: %s", test.s, s, test.exp)
+			}
+			// Second retrieval should returns the same result. This is also tests
+			// the cache
+			if s := Pluralize(test.s); s != test.exp {
+				t.Errorf("Pluralize(%s) = %s, expected: %s (2nd)", test.s, s, test.exp)
+			}
+		})
 	}
 }
 
 func TestSingularize(t *testing.T) {
-	for i, test := range singularTests() {
-		if s := Singularize(test.s); s != test.exp {
-			t.Errorf("test %d Singularize(%s) = %s, expected: %s", i, test.s, s, test.exp)
-		}
-		// Second retrieval should returns the same result. This is also tests
-		// the cache
-		if s := Singularize(test.s); s != test.exp {
-			t.Errorf("test %d (2) Singularize(%s) = %s, expected: %s", i, test.s, s, test.exp)
-		}
+	for _, test := range singularTests() {
+		t.Run(test.s, func(t *testing.T) {
+			if s := Singularize(test.s); s != test.exp {
+				t.Errorf("Singularize(%s) = %s, expected: %s", test.s, s, test.exp)
+			}
+			// Second retrieval should returns the same result. This is also tests
+			// the cache
+			if s := Singularize(test.s); s != test.exp {
+				t.Errorf("Singularize(%s) = %s, expected: %s (2nd)", test.s, s, test.exp)
+			}
+		})
 	}
 }
 
-func TestReverse(t *testing.T) {
-	for i, test := range pluralTests() {
-		if !test.match {
-			continue
-		}
-		if s := Singularize(Pluralize(test.s)); s != test.s {
-			t.Errorf("test %d Singularize(Pluralize(%s)) != %s, got: %s", i, test.s, test.s, s)
-		}
-	}
-	for i, test := range singularTests() {
-		if !test.match {
-			continue
-		}
-		if s := Pluralize(Singularize(test.s)); s != test.s {
-			t.Errorf("test %d Pluralize(Singularize(%s)) != %s, got: %s", i, test.s, test.s, s)
-		}
+func TestPluralizeInverse(t *testing.T) {
+	for _, test := range pluralTests() {
+		t.Run(test.s, func(t *testing.T) {
+			if !test.match {
+				return
+			}
+			if s := Singularize(Pluralize(test.s)); s != test.s {
+				t.Errorf("Singularize(Pluralize(%s)) != %s, got: %s", test.s, test.s, s)
+			}
+		})
 	}
 }
 
-// test is an inflector test.
-type test struct {
+func TestSingularizeInverse(t *testing.T) {
+	for _, test := range singularTests() {
+		t.Run(test.s, func(t *testing.T) {
+			if !test.match {
+				return
+			}
+			if s := Pluralize(Singularize(test.s)); s != test.s {
+				t.Errorf("Pluralize(Singularize(%s)) != %s, got: %s", test.s, test.s, s)
+			}
+		})
+	}
+}
+
+// inflectorTest is an inflector test.
+type inflectorTest struct {
 	s     string
 	exp   string
 	match bool
 }
 
-func pluralTests() []test {
-	return []test{
+func pluralTests() []inflectorTest {
+	return []inflectorTest{
 		{"categoria", "categorias", true},
 		{"house", "houses", true},
 		{"powerhouse", "powerhouses", true},
@@ -111,13 +122,14 @@ func pluralTests() []test {
 		{"objective", "objectives", true},
 		{"specie", "species", false},
 		{"species", "species", true},
+		{"chive", "chives", true},
 		{"", "", true},
 	}
 }
 
 // singularTests returns the singular tests.
-func singularTests() []test {
-	return []test{
+func singularTests() []inflectorTest {
+	return []inflectorTest{
 		{"categorias", "categoria", true},
 		{"menus", "menu", true},
 		{"news", "news", true},

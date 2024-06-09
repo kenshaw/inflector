@@ -7,13 +7,29 @@ import (
 )
 
 func ExampleSingularize() {
-	fmt.Println(inflector.Singularize("People"))
+	for _, s := range []string{
+		"People",
+		"Archives",
+		"octopuses",
+	} {
+		fmt.Println(inflector.Singularize(s))
+	}
 	// Output:
 	// Person
+	// Archive
+	// octopus
 }
 
 func ExamplePluralize() {
-	fmt.Println(inflector.Pluralize("octopus"))
+	for _, s := range []string{
+		"Person",
+		"Archive",
+		"octopus",
+	} {
+		fmt.Println(inflector.Pluralize(s))
+	}
 	// Output:
+	// People
+	// Archives
 	// octopuses
 }
